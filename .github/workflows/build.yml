@@ -1,0 +1,41 @@
+
+name: MyFirstApp CI
+
+on:
+  push:
+    branches: [main]
+
+  pull_request:
+    branches: [main]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ASP.NET MVC Application
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        shell: pwsh
+        run: |
+          if (Test-Path "MyFirstApp/packages.config") {
+            nuget restore "MyFirstApp/packages.config" -PackagesDirectory "packages"
+          } else {
+            Write-Host "No packages.config found. Skipping packages.config restore."
+          }
+
+      - name: Build application
+        run: msbuild "MyFirstApp/MyFirstApp.csproj" -t:Rebuild -p:Configuration=Debug
+
+      - name: Build completed
+        run: echo "MyFirstApp build completed successfully"
