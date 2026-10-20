@@ -51,8 +51,8 @@ jobs:
         run: msbuild "MyFirstApp.Tests/MyFirstApp.Tests.csproj" -t:Build -p:Configuration=Debug
 
       
-      # Step 7: Run MSTest test cases
-      # Build the test project and execute all MSTest tests
+      
+      # Step 7: Locate Visual Studio Test Runner and execute MSTest cases
       - name: "7. TEST - Run MSTest Test Cases"
         shell: pwsh
         run: |
@@ -60,17 +60,45 @@ jobs:
           Write-Host "Starting MSTest execution..."
           Write-Host "============================================"
 
-          dotnet test "MyFirstApp.Tests/MyFirstApp.Tests.csproj" `
-            --configuration Debug `
-            --logger "console;verbosity=normal"
+          $testDll = Get-ChildItem "MyFirstApp.Tests/bin/Debug" `
+            -Filter "MyFirstApp.Tests.dll" `
+            -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
 
+          if (-not $testDll) {
+            throw "FAILED: Test DLL not found. Check Step 6."
+          }
+
+          Write-Host "Test assembly found: $($testDll.FullName)"
+
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+
+          if (-not (Test-Path $vswhere)) {
+            throw "FAILED: vswhere.exe was not found."
+          }
+
+          $vsPath = & $vswhere -latest -products '*' -property installationPath
+
+          if (-not $vsPath) {
+            throw "FAILED: Visual Studio installation was not found."
+          }
+
+          $vstestPath = Join-Path $vsPath "Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe"
+
+          if (-not (Test-Path $vstestPath)) {
+            throw "FAILED: vstest.console.exe was not found at $vstestPath"
+          }
+
+          Write-Host "Running tests with: $vstestPath"
+
+          & $vstestPath $testDll.FullName
           if ($LASTEXITCODE -ne 0) {
-            throw "FAILED: MSTest execution failed. Check the test output above."
+            throw "FAILED: One or more tests failed, or test execution failed."
           }
 
           Write-Host "PASSED: MSTest execution completed successfully."
 
-      # Step 8: Run only when all previous steps succeed
+      # Step 8: Report success only when all previous steps pass
       - name: "8. SUCCESS - Build and Tests Passed"
         if: ${{ success() }}
         run: 'echo "SUCCESS: Application built and test execution passed."'
