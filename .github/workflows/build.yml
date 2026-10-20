@@ -94,4 +94,4 @@ jobs:
       # Step 8: This step runs only if all previous steps succeeded
       - name: "8. SUCCESS - Build and Tests Passed"
         if: ${{ success() }}
-        run: echo "SUCCESS: Application built and test execution passed."
+        run: 'echo "SUCCESS: Application built and test execution passed."'
