@@ -50,8 +50,9 @@ jobs:
       - name: "6. BUILD - Compile Test Project"
         run: msbuild "MyFirstApp.Tests/MyFirstApp.Tests.csproj" -t:Build -p:Configuration=Debug
 
-      # Step 7: Locate the compiled test DLL and execute its tests
-      # A failed assertion or test execution error should fail this step
+      
+      # Step 7: Run MSTest test cases
+      # Build the test project and execute all MSTest tests
       - name: "7. TEST - Run MSTest Test Cases"
         shell: pwsh
         run: |
@@ -59,39 +60,17 @@ jobs:
           Write-Host "Starting MSTest execution..."
           Write-Host "============================================"
 
-          $testDll = Get-ChildItem "MyFirstApp.Tests/bin/Debug" `
-            -Filter "MyFirstApp.Tests.dll" `
-            -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -First 1
+          dotnet test "MyFirstApp.Tests/MyFirstApp.Tests.csproj" `
+            --configuration Debug `
+            --logger "console;verbosity=normal"
 
-          if (-not $testDll) {
-            throw "FAILED: Test DLL not found. Check the test project build output."
-          }
-
-          Write-Host "Test assembly found: $($testDll.FullName)"
-
-          $vstest = Get-ChildItem "${env:ProgramFiles(x86)}/Microsoft Visual Studio" `
-            -Filter "vstest.console.exe" `
-            -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-
-          if (-not $vstest) {
-            throw "FAILED: Visual Studio Test Runner was not found."
-          }
-
-          Write-Host "Running tests with: $($vstest.FullName)"
-
-          & $vstest.FullName $testDll.FullName
-          $testExitCode = $LASTEXITCODE
-
-          if ($testExitCode -ne 0) {
-            Write-Error "FAILED: One or more tests failed, or test execution failed."
-            exit $testExitCode
+          if ($LASTEXITCODE -ne 0) {
+            throw "FAILED: MSTest execution failed. Check the test output above."
           }
 
           Write-Host "PASSED: MSTest execution completed successfully."
 
-      # Step 8: This step runs only if all previous steps succeeded
+      # Step 8: Run only when all previous steps succeed
       - name: "8. SUCCESS - Build and Tests Passed"
         if: ${{ success() }}
         run: 'echo "SUCCESS: Application built and test execution passed."'
