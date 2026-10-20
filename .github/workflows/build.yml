@@ -1,6 +1,12 @@
+# ============================================================
+# Workflow Name: MyFirstApp CI
+# Purpose: Build ASP.NET MVC application and run MSTest cases
+# Trigger: Push, Pull Request, or Manual execution
+# ============================================================
 
 name: MyFirstApp CI
 
+# Run this workflow when code is pushed or a pull request is created for main
 on:
   push:
     branches: [main]
@@ -8,34 +14,84 @@ on:
   pull_request:
     branches: [main]
 
+  # Allows you to start the workflow manually from GitHub Actions
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build ASP.NET MVC Application
+    name: Build Application and Run Test Cases
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
+      # Step 1: Download the repository code to the GitHub runner
+      - name: "1. CHECKOUT - Download Source Code"
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
+      # Step 2: Configure MSBuild to compile the ASP.NET MVC project
+      - name: "2. SETUP - Configure MSBuild"
         uses: microsoft/setup-msbuild@v2
 
-      - name: Setup NuGet
+      # Step 3: Configure NuGet for restoring project dependencies
+      - name: "3. SETUP - Configure NuGet"
         uses: NuGet/setup-nuget@v2
 
-      - name: Restore NuGet packages
-        shell: pwsh
-        run: |
-          if (Test-Path "MyFirstApp/packages.config") {
-            nuget restore "MyFirstApp/packages.config" -PackagesDirectory "packages"
-          } else {
-            Write-Host "No packages.config found. Skipping packages.config restore."
-          }
+      # Step 4: Restore NuGet dependencies for the solution
+      # If this step fails, check package sources and project configuration
+      - name: "4. RESTORE - Download NuGet Packages"
+        run: nuget restore MyFirstApp.slnx
 
-      - name: Build application
+      # Step 5: Build the main ASP.NET MVC application
+      # If this step fails, check C# compilation errors and missing references
+      - name: "5. BUILD - Compile MVC Application"
         run: msbuild "MyFirstApp/MyFirstApp.csproj" -t:Rebuild -p:Configuration=Debug
 
-      - name: Build completed
-        run: echo "MyFirstApp build completed successfully"
+      # Step 6: Build the MSTest project containing HomeControllerTests.cs
+      # If this step fails, check the test project, MSTest packages, and references
+      - name: "6. BUILD - Compile Test Project"
+        run: msbuild "MyFirstApp.Tests/MyFirstApp.Tests.csproj" -t:Build -p:Configuration=Debug
+
+      # Step 7: Locate the compiled test DLL and execute its tests
+      # A failed assertion or test execution error should fail this step
+      - name: "7. TEST - Run MSTest Test Cases"
+        shell: pwsh
+        run: |
+          Write-Host "============================================"
+          Write-Host "Starting MSTest execution..."
+          Write-Host "============================================"
+
+          $testDll = Get-ChildItem "MyFirstApp.Tests/bin/Debug" `
+            -Filter "MyFirstApp.Tests.dll" `
+            -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+
+          if (-not $testDll) {
+            throw "FAILED: Test DLL not found. Check the test project build output."
+          }
+
+          Write-Host "Test assembly found: $($testDll.FullName)"
+
+          $vstest = Get-ChildItem "${env:ProgramFiles(x86)}/Microsoft Visual Studio" `
+            -Filter "vstest.console.exe" `
+            -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+
+          if (-not $vstest) {
+            throw "FAILED: Visual Studio Test Runner was not found."
+          }
+
+          Write-Host "Running tests with: $($vstest.FullName)"
+
+          & $vstest.FullName $testDll.FullName
+          $testExitCode = $LASTEXITCODE
+
+          if ($testExitCode -ne 0) {
+            Write-Error "FAILED: One or more tests failed, or test execution failed."
+            exit $testExitCode
+          }
+
+          Write-Host "PASSED: MSTest execution completed successfully."
+
+      # Step 8: This step runs only if all previous steps succeeded
+      - name: "8. SUCCESS - Build and Tests Passed"
+        if: success()
+        run: echo "SUCCESS: Application built and test execution passed."

@@ -1,4 +1,6 @@
-﻿using MyFirstApp.Controllers;
+﻿
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using MyFirstApp.Controllers;
 using System.Web.Mvc;
 
 namespace MyFirstApp.Tests
@@ -13,7 +15,7 @@ namespace MyFirstApp.Tests
             var controller = new HomeController();
 
             // Act
-            var result = controller.Index();
+            ActionResult result = controller.Index();
 
             // Assert
             Assert.IsNotNull(result);
